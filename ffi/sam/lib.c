@@ -1,42 +1,34 @@
-#include <ctype.h>
-#include <string.h>
-#include <stdio.h>
 #include <stdlib.h>
-
-#include "reciter.h"
-#include "sam.h"
+#include <string.h>
 #include "lib.h"
+#include "sam.h"
+#include "reciter.h"
+#include "render.h"
 
-int sam_debug = 0;
+struct speak_result speakText(char *text)
+{
+    struct speak_result result;
+    result.res = 0;
+    result.buf = NULL;
+    result.buf_size = 0;
 
-void setupSpeak(unsigned char pitch,unsigned char speed,unsigned char throat,unsigned char mouth) {
-    SetPitch(pitch == 0 ? 64 : pitch);
-    SetSpeed(speed == 0 ? 72 : speed);
-    SetThroat(throat == 0 ? 128 :throat);
-    SetMouth(mouth == 0 ? 128 : mouth);
+    if (text == NULL) return result;
+
+    SetInput(text);
+    if (TextToPhonemes() == 0) return result;
+
+    if (SAMMain() == 0) return result;
+
+    result.buf = (unsigned char*)GetBuffer();
+    result.buf_size = GetBufferLength();
+    result.res = 1;
+    return result;
 }
 
-struct AudioResult* speakText(char *input)
+void setupSpeak(unsigned char pitch, unsigned char speed, unsigned char throat, unsigned char mouth)
 {
-    char phoneme_input[256];
-    int i;
-
-    memset(phoneme_input, 0, sizeof(phoneme_input));
-    strncpy(phoneme_input, input, sizeof(phoneme_input) - 2);
-
-    for (i = 0; phoneme_input[i] != 0; i++) {
-        phoneme_input[i] = (char)toupper((unsigned char)phoneme_input[i]);
-    }
-    strncat(phoneme_input, "[", sizeof(phoneme_input) - strlen(phoneme_input) - 1);
-
-    TextToPhonemes((unsigned char*) phoneme_input);
-    if (sam_debug) {
-        fprintf(stderr, "Phonemes: %s\n", phoneme_input);
-    }
-    SetInput(phoneme_input);
-    struct AudioResult *resp = malloc(sizeof(struct AudioResult));
-    resp -> res = SAMMain();
-    resp -> buf = GetBuffer();
-    resp -> buf_size = GetBufferLength() / 50;
-    return resp;
+    SetPitch(pitch);
+    SetSpeed(speed);
+    SetThroat(throat);
+    SetMouth(mouth);
 }

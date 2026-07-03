@@ -1,8 +1,6 @@
-#ifndef RECITER_C
-#define RECITER_C
+#ifndef RECITER_H
+#define RECITER_H
 
-//int TextToPhonemes(char *input, char *output);
-
-int TextToPhonemes(unsigned char *input);
+int TextToPhonemes(void);
 
 #endif
