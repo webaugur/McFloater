@@ -1,1 +1,1 @@
-/* AUTO-GENERATED from workspace - truncated for push test */
+PLACEHOLDER_LOAD_FROM_FILE
