@@ -1,0 +1,18 @@
+[package]
+name = "mcfloater"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Floaty McFloater — Max Headroom parody avatar"
+
+[[bin]]
+name = "mcfloater"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+mcfloater-audio = { workspace = true }
+mcfloater-tts = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

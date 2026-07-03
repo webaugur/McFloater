@@ -1,0 +1,11 @@
+[package]
+name = "mcfloater-stt"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Streaming speech-to-text for Floaty McFloater (Phase 2)"
+
+[dependencies]
+thiserror = { workspace = true }
+tracing = { workspace = true }

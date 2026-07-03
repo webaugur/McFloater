@@ -1,0 +1,35 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/mcfloater-core",
+    "crates/mcfloater-audio",
+    "crates/mcfloater-stt",
+    "crates/mcfloater-tts",
+    "crates/mcfloater-lipsync",
+    "crates/mcfloater-render",
+    "apps/mcfloater",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/webaugur/McFloater"
+
+[workspace.dependencies]
+cpal = "0.15"
+clap = { version = "4", features = ["derive"] }
+rubato = "0.15"
+crossbeam-channel = "0.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+mcfloater-core = { path = "crates/mcfloater-core" }
+mcfloater-audio = { path = "crates/mcfloater-audio" }
+mcfloater-stt = { path = "crates/mcfloater-stt" }
+mcfloater-tts = { path = "crates/mcfloater-tts" }
+mcfloater-lipsync = { path = "crates/mcfloater-lipsync" }
+mcfloater-render = { path = "crates/mcfloater-render" }

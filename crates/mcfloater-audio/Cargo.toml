@@ -1,0 +1,13 @@
+[package]
+name = "mcfloater-audio"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Audio capture and playback for Floaty McFloater"
+
+[dependencies]
+cpal = { workspace = true }
+rubato = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
