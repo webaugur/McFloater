@@ -1,4 +1,11 @@
-//! 3D head rendering for Floaty McFloater (Bevy + Vulkan on Radeon).
+//! 3D rendering for Floaty McFloater (Phase 1).
 
-/// Placeholder — Phase 1 will add Bevy app and CRT post-process.
-pub fn init_render_stub() {}
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum RenderError {
+    #[error("not implemented: {0}")]
+    NotImplemented(&'static str),
+}
+
+pub type Result<T> = std::result::Result<T, RenderError>;

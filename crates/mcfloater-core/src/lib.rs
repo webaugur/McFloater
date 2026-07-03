@@ -1,19 +1,11 @@
-//! Core state machine and dialog loop for Floaty McFloater.
+//! Core orchestration for Floaty McFloater.
 
-use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
-/// High-level avatar state.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AvatarState {
-    Idle,
-    Listening,
-    Thinking,
-    Speaking,
+#[derive(Debug, Error)]
+pub enum McFloaterError {
+    #[error("not implemented: {0}")]
+    NotImplemented(&'static str),
 }
 
-/// Placeholder dialog event (Phase 3 will wire Ollama).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DialogEvent {
-    pub user_text: String,
-    pub reply_text: String,
-}
+pub type Result<T> = std::result::Result<T, McFloaterError>;

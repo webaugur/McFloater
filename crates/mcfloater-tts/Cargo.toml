@@ -7,9 +7,5 @@ repository.workspace = true
 description = "SAM formant TTS for Floaty McFloater"
 
 [dependencies]
-serde = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-
-[build-dependencies]
-cc = "1"

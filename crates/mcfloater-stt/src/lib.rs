@@ -1,4 +1,11 @@
-//! Streaming STT for Floaty McFloater (Phase 2).
+//! Speech-to-text for Floaty McFloater (Phase 2).
 
-/// Placeholder — always-on VAD-gated streaming STT will land in Phase 2.
-pub fn init_stt_stub() {}
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum SttError {
+    #[error("not implemented: {0}")]
+    NotImplemented(&'static str),
+}
+
+pub type Result<T> = std::result::Result<T, SttError>;

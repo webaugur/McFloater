@@ -1,18 +1,11 @@
-//! Lip sync for Floaty McFloater — viseme timeline from SAM phoneme output.
+//! Lip sync for Floaty McFloater (Phase 4).
 
-use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Viseme {
-    Closed,
-    Open,
-    Wide,
-    Round,
-    Teeth,
+#[derive(Debug, Error)]
+pub enum LipSyncError {
+    #[error("not implemented: {0}")]
+    NotImplemented(&'static str),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VisemeKeyframe {
-    pub time_ms: u32,
-    pub viseme: Viseme,
-}
+pub type Result<T> = std::result::Result<T, LipSyncError>;
