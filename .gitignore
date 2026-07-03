@@ -1,0 +1,22 @@
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# Python
+python/.venv/
+python/__pycache__/
+*.pyc
+
+models/
+output/
+assets/voices/*.wav
+assets/voices/*.mp3
+*.mp4
+*.onnx
+*.bin
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
