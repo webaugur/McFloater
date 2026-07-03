@@ -4,8 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Streaming speech-to-text for Floaty McFloater (Phase 2)"
+description = "Streaming speech-to-text for Floaty McFloater"
 
 [dependencies]
+serde = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

@@ -1,6 +1,4 @@
-//! Bevy 3D head renderer for Floaty McFloater.
-//!
-//! Phase 1: window, glTF head, CRT post-process.
+//! 3D head rendering for Floaty McFloater (Bevy + Vulkan on Radeon).
 
-/// Placeholder until Phase 1.
-pub const RENDER_TARGET_FPS: u32 = 60;
+/// Placeholder — Phase 1 will add Bevy app and CRT post-process.
+pub fn init_render_stub() {}

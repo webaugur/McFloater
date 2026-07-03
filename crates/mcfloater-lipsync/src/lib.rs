@@ -1,11 +1,18 @@
-//! Phoneme-driven lip sync for Floaty McFloater.
-//!
-//! Phase 4: SAM phoneme timeline or Rhubarb fallback.
+//! Lip sync for Floaty McFloater — viseme timeline from SAM phoneme output.
 
-/// A viseme weight at a point in time (milliseconds from speech start).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Viseme {
+    Closed,
+    Open,
+    Wide,
+    Round,
+    Teeth,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VisemeKeyframe {
     pub time_ms: u32,
-    pub viseme: String,
-    pub weight: f32,
+    pub viseme: Viseme,
 }

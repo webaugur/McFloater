@@ -71,129 +71,117 @@ pub fn play_pcm_f32_mono(samples: &[f32], sample_rate: u32) -> Result<(), Playba
     let position = Arc::new(Mutex::new(0usize));
     let playback_done = Arc::new(Mutex::new(false));
 
-    let playback_cb = playback.clone();
-    let position_cb = position.clone();
-    let done_cb = playback_done.clone();
-
     let stream = match format {
-        SampleFormat::F32 => device.build_output_stream(
+        SampleFormat::F32 => build_stream::<f32>(
+            &device,
             &config.into(),
-            move |output: &mut [f32], _| write_output(output, channels, &playback_cb, &position_cb, &done_cb),
-            move |err| warn!(%err, "audio stream error"),
-            None,
-        ),
-        SampleFormat::I16 => device.build_output_stream(
+            channels,
+            Arc::clone(&playback),
+            Arc::clone(&position),
+            Arc::clone(&playback_done),
+        )?,
+        SampleFormat::I16 => build_stream::<i16>(
+            &device,
             &config.into(),
-            move |output: &mut [i16], _| write_output(output, channels, &playback_cb, &position_cb, &done_cb),
-            move |err| warn!(%err, "audio stream error"),
-            None,
-        ),
-        SampleFormat::U16 => device.build_output_stream(
+            channels,
+            Arc::clone(&playback),
+            Arc::clone(&position),
+            Arc::clone(&playback_done),
+        )?,
+        SampleFormat::U16 => build_stream::<u16>(
+            &device,
             &config.into(),
-            move |output: &mut [u16], _| write_output(output, channels, &playback_cb, &position_cb, &done_cb),
-            move |err| warn!(%err, "audio stream error"),
-            None,
-        ),
+            channels,
+            Arc::clone(&playback),
+            Arc::clone(&position),
+            Arc::clone(&playback_done),
+        )?,
         other => return Err(PlaybackError::UnsupportedFormat(other)),
-    }
-    .map_err(|e| PlaybackError::Stream(e.to_string()))?;
+    };
 
     stream
         .play()
         .map_err(|e| PlaybackError::Stream(e.to_string()))?;
 
-    let total_frames = playback.lock().map_err(lock_err)?.len();
-    let duration = Duration::from_secs_f64(total_frames as f64 / device_rate as f64);
+    let total_samples = playback.lock().unwrap().len();
+    let duration = Duration::from_secs_f64(total_samples as f64 / device_rate as f64);
     thread::sleep(duration + Duration::from_millis(100));
-
-    stream
-        .pause()
-        .map_err(|e| PlaybackError::Stream(e.to_string()))?;
 
     Ok(())
 }
 
-fn write_output<T>(
-    output: &mut [T],
+fn build_stream<T>(
+    device: &cpal::Device,
+    config: &cpal::StreamConfig,
     channels: usize,
-    playback: &Arc<Mutex<Vec<f32>>>,
-    position: &Arc<Mutex<usize>>,
-    done: &Arc<Mutex<bool>>,
-) where
-    T: Sample + FromSample<f32>,
+    playback: Arc<Mutex<Vec<f32>>>,
+    position: Arc<Mutex<usize>>,
+    playback_done: Arc<Mutex<bool>>,
+) -> Result<cpal::Stream, PlaybackError>
+where
+    T: Sample + cpal::SizedSample + FromSample<f32>,
 {
-    let samples = match playback.lock() {
-        Ok(samples) => samples,
-        Err(_) => return,
-    };
+    let err_fn = |err| warn!(%err, "audio stream error");
 
-    let mut pos = match position.lock() {
-        Ok(pos) => pos,
-        Err(_) => return,
-    };
+    let stream = device
+        .build_output_stream(
+            config,
+            move |data: &mut [T], _| {
+                let buf = playback.lock().unwrap();
+                let mut pos = position.lock().unwrap();
 
-    for frame in output.chunks_mut(channels) {
-        let sample = if *pos < samples.len() {
-            let value = samples[*pos];
-            *pos += 1;
-            value
-        } else {
-            if let Ok(mut finished) = done.lock() {
-                *finished = true;
-            }
-            0.0
-        };
+                for frame in data.chunks_mut(channels) {
+                    let sample = if *pos < buf.len() {
+                        buf[*pos]
+                    } else {
+                        0.0
+                    };
+                    let converted = T::from_sample(sample);
+                    for ch in frame.iter_mut() {
+                        *ch = converted;
+                    }
+                    if *pos < buf.len() {
+                        *pos += 1;
+                    }
+                }
 
-        for channel in frame.iter_mut() {
-            *channel = T::from_sample(sample);
-        }
-    }
+                if *pos >= buf.len() {
+                    *playback_done.lock().unwrap() = true;
+                }
+            },
+            err_fn,
+            None,
+        )
+        .map_err(|e| PlaybackError::Stream(e.to_string()))?;
+
+    Ok(stream)
 }
 
-fn resample_mono(input: &[f32], from_rate: u32, to_rate: u32) -> Result<Vec<f32>, PlaybackError> {
-    if input.is_empty() {
+fn resample_mono(samples: &[f32], from_rate: u32, to_rate: u32) -> Result<Vec<f32>, PlaybackError> {
+    if samples.is_empty() {
         return Ok(Vec::new());
     }
 
     let mut resampler = FftFixedIn::<f32>::new(
-        from_rate as usize,
         to_rate as usize,
+        from_rate as usize,
         1024,
-        2,
+        1,
         1,
     )
     .map_err(|e| PlaybackError::Resample(e.to_string()))?;
 
-    let mut out = Vec::with_capacity(resampler.output_frames_max() * 4);
-    let mut chunk_start = 0usize;
+    let mut output = Vec::new();
+    let chunk_size = resampler.input_frames_max();
 
-    while chunk_start < input.len() {
-        let chunk_end = (chunk_start + 1024).min(input.len());
-        let chunk = &input[chunk_start..chunk_end];
-
+    for chunk in samples.chunks(chunk_size) {
         let mut padded = chunk.to_vec();
-        if padded.len() < 1024 {
-            padded.resize(1024, 0.0);
-        }
-
+        padded.resize(chunk_size, 0.0);
         let resampled = resampler
             .process(&[padded], None)
             .map_err(|e| PlaybackError::Resample(e.to_string()))?;
-
-        let valid_frames = if chunk_end == input.len() {
-            let ratio = to_rate as f64 / from_rate as f64;
-            ((chunk.len() as f64) * ratio).ceil() as usize
-        } else {
-            resampled[0].len()
-        };
-
-        out.extend_from_slice(&resampled[0][..valid_frames.min(resampled[0].len())]);
-        chunk_start = chunk_end;
+        output.extend_from_slice(&resampled[0]);
     }
 
-    Ok(out)
-}
-
-fn lock_err<E: std::fmt::Display>(err: E) -> PlaybackError {
-    PlaybackError::Stream(err.to_string())
+    Ok(output)
 }

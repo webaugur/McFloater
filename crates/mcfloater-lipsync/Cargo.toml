@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Phoneme-driven lip sync for Floaty McFloater (Phase 4)"
+description = "Lip sync viseme timeline from SAM phonemes"
 
 [dependencies]
 serde = { workspace = true }

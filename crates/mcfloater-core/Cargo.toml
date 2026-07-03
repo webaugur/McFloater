@@ -4,9 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "State machine, IPC, and dialog loop for Floaty McFloater"
+description = "Core state machine and dialog loop for Floaty McFloater"
 
 [dependencies]
+crossbeam-channel = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

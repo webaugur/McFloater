@@ -1,19 +1,19 @@
-//! Core orchestration for Floaty McFloater.
-//!
-//! Phase 0: placeholder types. Dialog loop and LLM IPC arrive in Phase 3.
+//! Core state machine and dialog loop for Floaty McFloater.
 
-/// High-level runtime state for the avatar.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RuntimeState {
+use serde::{Deserialize, Serialize};
+
+/// High-level avatar state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AvatarState {
     Idle,
     Listening,
     Thinking,
     Speaking,
 }
 
-/// A single turn in the conversation history.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct ConversationTurn {
-    pub role: String,
-    pub content: String,
+/// Placeholder dialog event (Phase 3 will wire Ollama).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DialogEvent {
+    pub user_text: String,
+    pub reply_text: String,
 }

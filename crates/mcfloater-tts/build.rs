@@ -2,29 +2,27 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() {
-    let sam_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("../../ffi/sam");
+    let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let sam_dir = manifest_dir
+        .join("..")
+        .join("..")
+        .join("ffi")
+        .join("sam");
 
     println!("cargo:rerun-if-changed={}", sam_dir.display());
 
     cc::Build::new()
-        .files([
-            sam_dir.join("reciter.c"),
-            sam_dir.join("sam.c"),
-            sam_dir.join("render.c"),
-            sam_dir.join("lib.c"),
-            sam_dir.join("debug.c"),
-        ])
+        .file(sam_dir.join("sam.c"))
+        .file(sam_dir.join("render.c"))
+        .file(sam_dir.join("reciter.c"))
+        .file(sam_dir.join("debug.c"))
+        .file(sam_dir.join("lib.c"))
         .include(&sam_dir)
+        .warnings(false)
         .compile("sam");
 
-    let bindings = bindgen::Builder::default()
-        .header(sam_dir.join("lib.h").to_string_lossy())
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
-        .generate()
-        .expect("failed to generate SAM bindings");
-
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    bindings
-        .write_to_file(out_dir.join("bindings.rs"))
-        .expect("failed to write SAM bindings");
+    // ReciterTables / RenderTables / SamTabs are header-only tables included by the C sources.
+    for header in ["ReciterTabs.h", "RenderTabs.h", "SamTabs.h", "sam.h", "render.h", "reciter.h", "debug.h", "lib.h"] {
+        println!("cargo:rerun-if-changed={}", sam_dir.join(header).display());
+    }
 }

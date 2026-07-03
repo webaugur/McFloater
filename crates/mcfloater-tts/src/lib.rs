@@ -1,77 +1,25 @@
-//! Realtime formant speech for Floaty McFloater.
-//!
-//! Uses the vendored C64 SAM engine — same class of synthesis as 1970s–80s
-//! parametric/vocoder hardware. No neural models.
+//! SAM (C64 formant) text-to-speech for Floaty McFloater.
 
 mod sam;
 
-pub use sam::{SamEngine, SamError, SAMAudio};
+pub use sam::{FloatyTtsConfig, SamVoice, SpeechAudio, SynthesisError, DEMO_LINE};
 
-/// Floaty's SAM voice preset — robotic TV-host timbre.
-#[derive(Debug, Clone, Copy)]
-pub struct SamVoice {
-    pub speed: u8,
-    pub pitch: u8,
-    pub throat: u8,
-    pub mouth: u8,
+use tracing::info;
+
+/// Synthesize `text` into PCM audio using the SAM engine.
+pub fn synthesize(text: &str, config: &FloatyTtsConfig) -> Result<SpeechAudio, SynthesisError> {
+    info!(text = %text, "SAM synthesis start");
+    sam::synthesize_sam(text, config)
 }
 
-impl Default for SamVoice {
-    fn default() -> Self {
-        Self {
-            speed: 78,
-            pitch: 70,
-            throat: 115,
-            mouth: 105,
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn synthesize_demo_line() {
+        let speech = synthesize(DEMO_LINE, &FloatyTtsConfig::default()).expect("synthesis");
+        assert!(!speech.samples.is_empty());
+        assert_eq!(speech.sample_rate, 22_050);
     }
 }
-
-/// Runtime voice configuration.
-#[derive(Debug, Clone)]
-pub struct FloatyTtsConfig {
-    pub sam_voice: SamVoice,
-}
-
-impl Default for FloatyTtsConfig {
-    fn default() -> Self {
-        Self {
-            sam_voice: SamVoice::default(),
-        }
-    }
-}
-
-/// Unified speech output.
-#[derive(Debug, Clone)]
-pub struct SynthesizedSpeech {
-    pub samples: Vec<u8>,
-    pub sample_rate: u32,
-}
-
-impl SynthesizedSpeech {
-    pub const SAMPLE_RATE: u32 = 22_050;
-
-    pub fn len(&self) -> usize {
-        self.samples.len()
-    }
-
-    pub fn duration_secs(&self) -> f64 {
-        if self.sample_rate == 0 {
-            return 0.0;
-        }
-        self.len() as f64 / self.sample_rate as f64
-    }
-}
-
-/// Synthesize speech in realtime (typically milliseconds on CPU).
-pub fn synthesize(text: &str, config: &FloatyTtsConfig) -> Result<SynthesizedSpeech, SamError> {
-    let samples = SamEngine::speak(text, config.sam_voice)?;
-    Ok(SynthesizedSpeech {
-        samples,
-        sample_rate: SynthesizedSpeech::SAMPLE_RATE,
-    })
-}
-
-/// A canned intro line for demos.
-pub const DEMO_LINE: &str =
-    "G-g-greetings! I am Floaty McFloater. Welcome to the future of television!";

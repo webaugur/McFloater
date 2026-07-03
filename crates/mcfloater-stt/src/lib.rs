@@ -1,6 +1,4 @@
-//! Streaming speech-to-text for Floaty McFloater.
-//!
-//! Phase 2: sherpa-onnx streaming + Silero VAD.
+//! Streaming STT for Floaty McFloater (Phase 2).
 
-/// Placeholder until Phase 2.
-pub const STT_SAMPLE_RATE: u32 = 16_000;
+/// Placeholder — always-on VAD-gated streaming STT will land in Phase 2.
+pub fn init_stt_stub() {}
