@@ -1,13 +1,14 @@
-#ifndef LIB_H
-#define LIB_H
+#include "reciter.h"
+#include "sam.h"
 
-struct speak_result {
+extern int sam_debug;
+
+struct AudioResult {
     int res;
-    unsigned char *buf;
     int buf_size;
+    char *buf;
 };
 
-struct speak_result speakText(char *text);
-void setupSpeak(unsigned char pitch, unsigned char speed, unsigned char throat, unsigned char mouth);
+void setupSpeak(unsigned char pitch,unsigned char speed,unsigned char throat,unsigned char mouth);
 
-#endif
+struct AudioResult* speakText(char *input);

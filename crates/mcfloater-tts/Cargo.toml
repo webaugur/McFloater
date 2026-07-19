@@ -4,8 +4,14 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "SAM formant TTS for Floaty McFloater"
+description = "Realtime formant speech (SAM) for Floaty McFloater"
+build = "build.rs"
 
 [dependencies]
+libc = "0.2"
 thiserror = { workspace = true }
 tracing = { workspace = true }
+
+[build-dependencies]
+cc = "1"
+bindgen = "0.68"

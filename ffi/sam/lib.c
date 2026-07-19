@@ -40,3 +40,4 @@ struct AudioResult* speakText(char *input)
     resp -> buf_size = GetBufferLength() / 50;
     return resp;
 }
+

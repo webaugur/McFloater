@@ -1,127 +1,95 @@
-use std::ffi::{CStr, CString};
+use crate::SamVoice;
+use libc::c_void;
+use std::ffi::CString;
 use thiserror::Error;
-use tracing::debug;
 
-/// Demo line in Max Headroom stutter style.
-pub const DEMO_LINE: &str = "G-g-great to see you! Catch the wave!";
-
-/// SAM voice parameters (0–255).
-#[derive(Debug, Clone, Copy)]
-pub struct SamVoice {
-    pub speed: u8,
-    pub pitch: u8,
-    pub throat: u8,
-    pub mouth: u8,
+#[allow(dead_code, non_snake_case, non_camel_case_types)]
+mod bindings {
+    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
+use bindings::{setupSpeak, speakText};
 
-impl Default for SamVoice {
-    fn default() -> Self {
-        Self {
-            speed: 72,
-            pitch: 64,
-            throat: 128,
-            mouth: 128,
-        }
-    }
-}
-
-/// TTS configuration for Floaty.
-#[derive(Debug, Clone)]
-pub struct FloatyTtsConfig {
-    pub sam_voice: SamVoice,
-}
-
-impl Default for FloatyTtsConfig {
-    fn default() -> Self {
-        Self {
-            sam_voice: SamVoice::default(),
-        }
-    }
-}
-
-/// Synthesized speech audio.
-#[derive(Debug, Clone)]
-pub struct SpeechAudio {
-    pub samples: Vec<u8>,
-    pub sample_rate: u32,
-}
-
-impl SpeechAudio {
-    pub fn len(&self) -> usize {
-        self.samples.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.samples.is_empty()
-    }
-
-    pub fn duration_secs(&self) -> f64 {
-        if self.sample_rate == 0 {
-            return 0.0;
-        }
-        self.samples.len() as f64 / f64::from(self.sample_rate)
-    }
-}
+pub type SAMAudio = Vec<u8>;
 
 #[derive(Debug, Error)]
-pub enum SynthesisError {
-    #[error("empty input text")]
-    EmptyText,
-    #[error("text contains invalid UTF-8")]
-    InvalidUtf8,
-    #[error("SAM synthesis failed")]
-    SamFailed,
+pub enum SamError {
+    #[error("text contains a null byte")]
+    ContainsNull,
+    #[error("SAM error code {0}")]
+    Code(i32),
 }
 
-extern "C" {
-    fn setupSpeak(speed: i32, pitch: i32, throat: i32, mouth: i32);
-    fn speakText(text: *const i8) -> *mut AudioResult;
-}
+pub struct SamEngine;
 
-#[repr(C)]
-struct AudioResult {
-    buf: *mut u8,
-    buf_size: i32,
-}
+impl SamEngine {
+    pub fn speak(text: &str, voice: SamVoice) -> Result<SAMAudio, SamError> {
+        Self::apply_voice(voice);
 
-/// Synthesize text to unsigned 8-bit mono PCM at 22050 Hz.
-pub fn synthesize(text: &str, config: &FloatyTtsConfig) -> Result<SpeechAudio, SynthesisError> {
-    let text = text.trim();
-    if text.is_empty() {
-        return Err(SynthesisError::EmptyText);
+        if text.len() <= 255 {
+            return Self::render_chunk(text);
+        }
+
+        let mut audio = Vec::new();
+        let mut chunk_words: Vec<&str> = Vec::new();
+
+        for word in text.split_whitespace() {
+            let chunk_len = chunk_words.iter().map(|w| w.len()).sum::<usize>()
+                + chunk_words.len().saturating_sub(1)
+                + word.len();
+
+            if chunk_len <= 255 {
+                chunk_words.push(word);
+            } else {
+                if !chunk_words.is_empty() {
+                    audio.extend(Self::render_chunk(&chunk_words.join(" "))?);
+                    chunk_words.clear();
+                }
+                chunk_words.push(word);
+            }
+        }
+
+        if !chunk_words.is_empty() {
+            audio.extend(Self::render_chunk(&chunk_words.join(" "))?);
+        }
+
+        Ok(audio)
     }
 
-    let c_text = CString::new(text).map_err(|_| SynthesisError::InvalidUtf8)?;
-    let v = config.sam_voice;
-
-    debug!(speed = v.speed, pitch = v.pitch, throat = v.throat, mouth = v.mouth, "SAM setup");
-
-    unsafe {
-        setupSpeak(
-            i32::from(v.speed),
-            i32::from(v.pitch),
-            i32::from(v.throat),
-            i32::from(v.mouth),
-        );
-
-        let result = speakText(c_text.as_ptr());
-        if result.is_null() {
-            return Err(SynthesisError::SamFailed);
+    fn apply_voice(voice: SamVoice) {
+        unsafe {
+            setupSpeak(
+                voice.pitch,
+                voice.speed,
+                voice.throat,
+                voice.mouth,
+            );
         }
+    }
 
-        let audio = &*result;
-        if audio.buf.is_null() || audio.buf_size <= 0 {
-            libc::free(result as *mut libc::c_void);
-            return Err(SynthesisError::SamFailed);
+    fn render_chunk(chunk: &str) -> Result<SAMAudio, SamError> {
+        let c_string = CString::new(chunk).map_err(|_| SamError::ContainsNull)?;
+
+        unsafe {
+            let result_ptr = speakText(c_string.as_ptr() as *mut i8);
+            if result_ptr.is_null() {
+                return Err(SamError::Code(-1));
+            }
+
+            let result = result_ptr.read();
+            if result.res != 1 {
+                libc::free(result_ptr as *mut c_void);
+                return Err(SamError::Code(result.res));
+            }
+
+            let audio = if result.buf.is_null() || result.buf_size <= 0 {
+                Vec::new()
+            } else {
+                std::slice::from_raw_parts(result.buf as *const u8, result.buf_size as usize)
+                    .to_vec()
+            };
+
+            libc::free(result_ptr as *mut c_void);
+            Ok(audio)
         }
-
-        let samples = std::slice::from_raw_parts(audio.buf, audio.buf_size as usize).to_vec();
-        libc::free(audio.buf as *mut libc::c_void);
-        libc::free(result as *mut libc::c_void);
-
-        Ok(SpeechAudio {
-            samples,
-            sample_rate: 22_050,
-        })
     }
 }

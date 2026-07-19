@@ -1,11 +1,19 @@
 //! Core orchestration for Floaty McFloater.
+//!
+//! Phase 0: placeholder types. Dialog loop and LLM IPC arrive in Phase 3.
 
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum McFloaterError {
-    #[error("not implemented: {0}")]
-    NotImplemented(&'static str),
+/// High-level runtime state for the avatar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RuntimeState {
+    Idle,
+    Listening,
+    Thinking,
+    Speaking,
 }
 
-pub type Result<T> = std::result::Result<T, McFloaterError>;
+/// A single turn in the conversation history.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ConversationTurn {
+    pub role: String,
+    pub content: String,
+}
