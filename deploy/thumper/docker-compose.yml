@@ -1,0 +1,23 @@
+# Home Assistant on Thumper — McFloater master-node hands
+# Host network so LAN discovery / Tuya local works on 10.0.0.0/24
+#
+# Usage:
+#   export HA_CONFIG="${HA_CONFIG:-$HOME/Data/homeassistant}"
+#   mkdir -p "$HA_CONFIG"
+#   docker compose up -d
+#
+# UI: http://thumper.local:8123
+
+services:
+  homeassistant:
+    container_name: mcfloater-homeassistant
+    image: ghcr.io/home-assistant/home-assistant:stable
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      TZ: America/Indiana/Indianapolis
+    volumes:
+      - ${HA_CONFIG:-/home/user/Data/homeassistant}:/config
+      - /etc/localtime:/etc/localtime:ro
+    # Privileged not required for WiFi Tuya plugs.
+    # Add /dev paths later only for Zigbee/Z-Wave sticks.

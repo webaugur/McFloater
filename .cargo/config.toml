@@ -1,0 +1,17 @@
+# Keep peak RAM down on 16 GiB Tower5810 (Bevy is heavy).
+# Override: CARGO_BUILD_JOBS=8 cargo build …
+[build]
+jobs = 2
+
+[term]
+# quieter progress still shows errors
+progress.when = "auto"
+
+# Prefer less debuginfo on dependencies (saves disk + a bit of RAM).
+[profile.dev.package."*"]
+debug = false
+
+[profile.release]
+# Avoid LTO / single-CGU which spikes memory on big crates
+lto = false
+codegen-units = 16

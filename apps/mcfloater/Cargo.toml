@@ -10,9 +10,23 @@ description = "Floaty McFloater — Max Headroom parody avatar"
 name = "mcfloater"
 path = "src/main.rs"
 
+[features]
+default = []
+# Bevy face / CRT window (Tower GPUs). Off by default so brain/CLI builds stay light on 16 GiB.
+face = ["dep:mcfloater-render", "dep:crossbeam-channel"]
+
 [dependencies]
-clap = { version = "4", features = ["derive"] }
+clap = { workspace = true }
+crossbeam-channel = { workspace = true, optional = true }
+dotenvy = { workspace = true }
 mcfloater-audio = { workspace = true }
+mcfloater-brain = { workspace = true }
+mcfloater-ha = { workspace = true }
+mcfloater-render = { workspace = true, optional = true }
 mcfloater-tts = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

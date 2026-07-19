@@ -15,11 +15,17 @@ Speech is parametric synthesis: phonemes → formants → PCM, the same class of
 | Phase | Feature | Status |
 |-------|---------|--------|
 | 0 | Cargo workspace + SAM TTS proof-of-life | Done |
-| 1 | Bevy 3D head + CRT shader | Planned |
-| 2 | Always-on streaming STT | Planned |
-| 3 | Ollama dialog loop | Planned |
-| 4 | Lip sync (SAM phoneme timeline) | Planned |
+| 1 | Bevy 3D head + CRT look **on Tower5810 GPUs** | Scaffolded (`mcfloater face`) |
+| 2 | Streaming STT **on Thumper** (Tower sends audio/text) | Planned |
+| 3 | Ollama dialog loop **on Thumper** | Planned |
+| 4 | Lip sync (SAM phoneme timeline) **on Tower** | Planned |
 | 5 | Polish + ship | Planned |
+| **Master** | **Split lab:** Tower = face; Thumper = brain + HA hands | **Docs + HA half-up** |
+| Master E | Video call / “call me” telepresence | Deferred |
+
+**Lab split:** GUI/avatar on **Tower5810** (FirePro Vulkan + desk audio). AI + Home Assistant on **thumper.local** (TITAN Xp, always-on). See [`docs/thumper-master-node.md`](docs/thumper-master-node.md).
+
+Home automation and assistant C&C live **here**, not in DragonSDR.
 
 ## Prerequisites
 
@@ -33,18 +39,48 @@ sudo apt install build-essential pkg-config libasound2-dev
 
 ## Build and run
 
+Default builds **exclude Bevy** (keeps RAM down on 16 GiB Tower). Brain / SAM / HA CLI:
+
 ```bash
 cargo build -p mcfloater --release
 cargo run -p mcfloater --release
-cargo run -p mcfloater --release -- "G-g-great to see you!"
+cargo run -p mcfloater --release -- "Hello! I'm Floaty McFloater."
 ```
 
-Tune the robotic voice with SAM parameters:
+Bevy face on local GPU (Tower5810) — opt-in feature, capped to 2 cargo jobs via `.cargo/config.toml`:
 
 ```bash
-cargo run -p mcfloater --release -- --speed 78 --pitch 70 --throat 115 --mouth 105 \
-  "Catch the wave!"
+export MCFLOATER_BRAIN_URL=http://thumper.local:8750
+cargo build -p mcfloater --release --features face
+cargo run -p mcfloater --release --features face -- face
+# Space = speak · A = ask brain · Esc = quit
+# Default mesh: assets/face/T2-avatar-bevy.glb (Avaturn T2 + jaw/visemes). See assets/face/README.md
+# export MCFLOATER_FACE_GLB=face/T2-avatar-with-animation-bevy.glb
+# If it still OOMs: CARGO_BUILD_JOBS=1 cargo build -p mcfloater --release --features face
 ```
+
+### Voice defaults (locked)
+
+| Path | Default | Notes |
+|------|---------|--------|
+| **Routing** | **`auto`** | **Piper on Thumper first**, **SAM** if busy/slow/offline |
+| SAM (backup) | **`floaty`** — 74/56/122/118 | Young/neutral male formant |
+| Piper (primary) | **`en_US-ryan-medium`** | Young adult male neural |
+
+```bash
+mcfloater voices                          # list presets + engines
+export MCFLOATER_BRAIN_URL=http://thumper.local:8750
+mcfloater speak                           # default intro (Piper; SAM if Thumper loaded)
+mcfloater ask                             # brain greeting reply (same intro via intent)
+mcfloater --engine sam "Hello."           # force local SAM
+mcfloater --engine brain "Hello."         # Piper only (no SAM backup)
+mcfloater --voice classic --engine sam hi # SAM preset override
+```
+
+**Overload fallback:** concurrent Piper jobs → brain `503 tts_busy` → SAM this line;
+Piper slower than `MCFLOATER_TTS_SLOW_MS` (default 3500) → **next** line uses SAM once.
+
+Natural speech install (once on Thumper): `deploy/thumper/install-piper.sh`
 
 ## Workspace layout
 
@@ -58,7 +94,10 @@ McFloater/
 │   ├── mcfloater-render/    # Bevy 3D head (Vulkan on Radeon)
 │   ├── mcfloater-stt/       # Streaming speech-to-text
 │   └── mcfloater-tts/       # SAM formant synthesis
-└── ffi/sam/                 # Vendored SAM C sources
+├── deploy/thumper/          # HA docker compose + master-node ops
+├── docs/                    # thumper-master-node.md, …
+├── ffi/sam/                 # Vendored SAM C sources
+└── python/                  # Ollama bridge (Phase 3)
 ```
 
 ## License

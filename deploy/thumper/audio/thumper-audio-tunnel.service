@@ -1,0 +1,16 @@
+[Unit]
+Description=Tunnel Tower5810 mic/speakers into Thumper (tower_mic / tower_speakers)
+After=pipewire-pulse.service pipewire.service network-online.target
+Wants=pipewire-pulse.service network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=TOWER_HOST=10.0.0.113
+Environment=PULSE_TCP_PORT=4713
+# Retry a while if Tower session not up yet
+ExecStart=/bin/bash -c 'for i in $(seq 1 60); do %h/Documents/McFloater/deploy/thumper/audio/thumper-tunnel.sh start && exit 0; sleep 2; done; exit 1'
+ExecStop=%h/Documents/McFloater/deploy/thumper/audio/thumper-tunnel.sh stop
+
+[Install]
+WantedBy=default.target

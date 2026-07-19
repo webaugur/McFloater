@@ -1,0 +1,27 @@
+[Unit]
+Description=McFloater Home Assistant Core (Thumper master node)
+Documentation=file:///home/user/Documents/McFloater/docs/thumper-master-node.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Config + venv on Data pool
+Environment=HA_CONFIG=%h/Data/homeassistant
+Environment=HA_VENV=%h/Data/homeassistant-venv
+WorkingDirectory=%h/Data/homeassistant
+ExecStart=%h/Data/homeassistant-venv/bin/hass --config %h/Data/homeassistant
+# UI "Restart" and crashes both exit the process — always bring it back
+Restart=always
+RestartSec=5
+# First boot / dependency install can be slow
+TimeoutStartSec=0
+TimeoutStopSec=120
+# Mild niceness so LingBot-Map / GPU jobs can still run
+Nice=5
+# Logs: journalctl --user -u mcfloater-homeassistant -f
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,17 @@
+[Unit]
+Description=McFloater brain (HA hands + intents) on Thumper
+Documentation=file://%h/Documents/McFloater/docs/thumper-master-node.md
+After=network-online.target mcfloater-homeassistant.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Documents/McFloater
+EnvironmentFile=-%h/Data/mcfloater/mcfloater.env
+# Prefer installed release binary; fall back to cargo run for dev.
+ExecStart=/bin/bash -c 'if [[ -x %h/.local/bin/mcfloater ]]; then exec %h/.local/bin/mcfloater brain; elif [[ -x %h/Documents/McFloater/target/release/mcfloater ]]; then exec %h/Documents/McFloater/target/release/mcfloater brain; else exec cargo run -p mcfloater --release -- brain; fi'
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

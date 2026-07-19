@@ -1,0 +1,16 @@
+[Unit]
+Description=Pulse/PipeWire TCP server for lab audio tunnels (Tower5810)
+After=pipewire-pulse.service pipewire.service
+Wants=pipewire-pulse.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=LISTEN_IP=10.0.0.113
+Environment=PULSE_TCP_PORT=4713
+Environment=PULSE_TCP_ACL=10.0.0.0/24
+ExecStart=%h/Documents/McFloater/deploy/thumper/audio/pulse-tcp-server.sh start
+ExecStop=%h/Documents/McFloater/deploy/thumper/audio/pulse-tcp-server.sh stop
+
+[Install]
+WantedBy=default.target

@@ -4,8 +4,11 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Bevy 3D head render for Floaty McFloater"
+description = "Bevy face / CRT avatar for Floaty McFloater (Tower GPUs)"
 
 [dependencies]
+bevy = { workspace = true }
+crossbeam-channel = { workspace = true }
+mcfloater-core = { workspace = true }
 serde = { workspace = true }
-thiserror = { workspace = true }
+tracing = { workspace = true }

@@ -20,3 +20,6 @@ assets/voices/*.mp3
 .vscode/
 *.swp
 .DS_Store
+# local lab secrets / client config
+mcfloater.env
+**/mcfloater.env
