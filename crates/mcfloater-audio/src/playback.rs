@@ -11,10 +11,19 @@ use crate::SAM_SAMPLE_RATE;
 
 /// Default silent lead-in before speech (device / PipeWire / BT often need ~300 ms to wake).
 /// Override with `MCFLOATER_AUDIO_PREROLL_MS` (0 disables).
-const DEFAULT_PREROLL_MS: u32 = 320;
+pub const DEFAULT_PREROLL_MS: u32 = 320;
 
 /// Small silent tail so the last phoneme is not cut when the stream pauses.
-const DEFAULT_POSTROLL_MS: u32 = 40;
+pub const DEFAULT_POSTROLL_MS: u32 = 40;
+
+/// Effective silent lead-in used by playback (respects `MCFLOATER_AUDIO_PREROLL_MS`).
+pub fn audio_preroll_ms() -> u32 {
+    env_ms("MCFLOATER_AUDIO_PREROLL_MS", DEFAULT_PREROLL_MS)
+}
+
+/// Called once when the first **speech** sample is sent to the device (after silent preroll).
+/// Use this to start lip-sync so the mouth does not flap during sink wake-up silence.
+pub type OnAudible = Box<dyn FnOnce() + Send>;
 
 #[derive(Debug, Error)]
 pub enum PlaybackError {
@@ -44,6 +53,14 @@ fn silence_frames(sample_rate: u32, ms: u32) -> usize {
 
 /// Play unsigned 8-bit mono PCM (SAM output) through the default output device.
 pub fn play_pcm_u8_mono(samples: &[u8]) -> Result<(), PlaybackError> {
+    play_pcm_u8_mono_with_notify(samples, None)
+}
+
+/// Like [`play_pcm_u8_mono`], with a one-shot callback when audible speech starts.
+pub fn play_pcm_u8_mono_with_notify(
+    samples: &[u8],
+    on_audible: Option<OnAudible>,
+) -> Result<(), PlaybackError> {
     if samples.is_empty() {
         return Ok(());
     }
@@ -53,7 +70,7 @@ pub fn play_pcm_u8_mono(samples: &[u8]) -> Result<(), PlaybackError> {
         .map(|&s| (f32::from(s) - 128.0) / 128.0)
         .collect::<Vec<f32>>();
 
-    play_pcm_f32_mono(&f32_samples, SAM_SAMPLE_RATE)
+    play_pcm_f32_mono_with_notify(&f32_samples, SAM_SAMPLE_RATE, on_audible)
 }
 
 /// Play signed 16-bit mono PCM at an arbitrary sample rate.
@@ -62,23 +79,41 @@ pub fn play_pcm_i16_mono(samples: &[i16], sample_rate: u32) -> Result<(), Playba
         return Ok(());
     }
     let f32_samples: Vec<f32> = samples.iter().map(|&s| s as f32 / 32768.0).collect();
-    play_pcm_f32_mono(&f32_samples, sample_rate)
+    play_pcm_f32_mono_with_notify(&f32_samples, sample_rate, None)
 }
 
 /// Parse and play a WAV buffer (PCM 16-bit) from e.g. brain `/v1/tts`.
 pub fn play_wav_bytes(wav: &[u8]) -> Result<(), PlaybackError> {
+    play_wav_bytes_with_notify(wav, None)
+}
+
+/// Like [`play_wav_bytes`], with a one-shot callback when audible speech starts.
+pub fn play_wav_bytes_with_notify(
+    wav: &[u8],
+    on_audible: Option<OnAudible>,
+) -> Result<(), PlaybackError> {
     let pcm = crate::wav_parse::parse_wav(wav)
         .map_err(|e| PlaybackError::Stream(e.to_string()))?;
     let mono = pcm.to_mono_f32();
-    play_pcm_f32_mono(&mono, pcm.sample_rate)
+    play_pcm_f32_mono_with_notify(&mono, pcm.sample_rate, on_audible)
 }
 
 /// Play 32-bit float mono PCM through the default output device.
+pub fn play_pcm_f32_mono(samples: &[f32], sample_rate: u32) -> Result<(), PlaybackError> {
+    play_pcm_f32_mono_with_notify(samples, sample_rate, None)
+}
+
+/// Play 32-bit float mono PCM; optional `on_audible` fires once when the silent
+/// preroll ends and the first speech frame is written to the stream.
 ///
 /// Opens a fresh cpal stream each call. Desktop sinks (PipeWire/Pulse, BT) often
 /// drop the first ~300 ms while the path wakes — we prepend silence at the
 /// **device** rate so speech syllables are not eaten.
-pub fn play_pcm_f32_mono(samples: &[f32], sample_rate: u32) -> Result<(), PlaybackError> {
+pub fn play_pcm_f32_mono_with_notify(
+    samples: &[f32],
+    sample_rate: u32,
+    on_audible: Option<OnAudible>,
+) -> Result<(), PlaybackError> {
     if samples.is_empty() {
         return Ok(());
     }
@@ -92,7 +127,7 @@ pub fn play_pcm_f32_mono(samples: &[f32], sample_rate: u32) -> Result<(), Playba
     let device_rate = config.sample_rate().0;
     let channels = config.channels() as usize;
     let format = config.sample_format();
-    let preroll_ms = env_ms("MCFLOATER_AUDIO_PREROLL_MS", DEFAULT_PREROLL_MS);
+    let preroll_ms = audio_preroll_ms();
     let postroll_ms = env_ms("MCFLOATER_AUDIO_POSTROLL_MS", DEFAULT_POSTROLL_MS);
 
     debug!(
@@ -123,16 +158,28 @@ pub fn play_pcm_f32_mono(samples: &[f32], sample_rate: u32) -> Result<(), Playba
     let playback = Arc::new(Mutex::new(buffer));
     let position = Arc::new(Mutex::new(0usize));
     let playback_done = Arc::new(Mutex::new(false));
+    // Take-once when write position reaches first speech frame (after preroll).
+    let audible_cb: Arc<Mutex<Option<OnAudible>>> = Arc::new(Mutex::new(on_audible));
 
     let playback_cb = playback.clone();
     let position_cb = position.clone();
     let done_cb = playback_done.clone();
+    let audible_cb_stream = audible_cb.clone();
+    let speech_start = pre_n;
 
     let stream = match format {
         SampleFormat::F32 => device.build_output_stream(
             &config.into(),
             move |output: &mut [f32], _| {
-                write_output(output, channels, &playback_cb, &position_cb, &done_cb)
+                write_output(
+                    output,
+                    channels,
+                    &playback_cb,
+                    &position_cb,
+                    &done_cb,
+                    speech_start,
+                    &audible_cb_stream,
+                )
             },
             move |err| warn!(%err, "audio stream error"),
             None,
@@ -140,7 +187,15 @@ pub fn play_pcm_f32_mono(samples: &[f32], sample_rate: u32) -> Result<(), Playba
         SampleFormat::I16 => device.build_output_stream(
             &config.into(),
             move |output: &mut [i16], _| {
-                write_output(output, channels, &playback_cb, &position_cb, &done_cb)
+                write_output(
+                    output,
+                    channels,
+                    &playback_cb,
+                    &position_cb,
+                    &done_cb,
+                    speech_start,
+                    &audible_cb_stream,
+                )
             },
             move |err| warn!(%err, "audio stream error"),
             None,
@@ -148,7 +203,15 @@ pub fn play_pcm_f32_mono(samples: &[f32], sample_rate: u32) -> Result<(), Playba
         SampleFormat::U16 => device.build_output_stream(
             &config.into(),
             move |output: &mut [u16], _| {
-                write_output(output, channels, &playback_cb, &position_cb, &done_cb)
+                write_output(
+                    output,
+                    channels,
+                    &playback_cb,
+                    &position_cb,
+                    &done_cb,
+                    speech_start,
+                    &audible_cb_stream,
+                )
             },
             move |err| warn!(%err, "audio stream error"),
             None,
@@ -160,6 +223,15 @@ pub fn play_pcm_f32_mono(samples: &[f32], sample_rate: u32) -> Result<(), Playba
     stream
         .play()
         .map_err(|e| PlaybackError::Stream(e.to_string()))?;
+
+    // No silent preroll → speech is audible immediately (still notify lip-sync).
+    if pre_n == 0 {
+        if let Ok(mut slot) = audible_cb.lock() {
+            if let Some(cb) = slot.take() {
+                cb();
+            }
+        }
+    }
 
     // Wait until the callback has drained the buffer (includes pre/post silence).
     let total_frames = playback.lock().map_err(lock_err)?.len();
@@ -191,6 +263,8 @@ fn write_output<T>(
     playback: &Arc<Mutex<Vec<f32>>>,
     position: &Arc<Mutex<usize>>,
     done: &Arc<Mutex<bool>>,
+    speech_start: usize,
+    on_audible: &Arc<Mutex<Option<OnAudible>>>,
 ) where
     T: Sample + FromSample<f32>,
 {
@@ -203,6 +277,8 @@ fn write_output<T>(
         Ok(pos) => pos,
         Err(_) => return,
     };
+
+    let start_pos = *pos;
 
     for frame in output.chunks_mut(channels) {
         let sample = if *pos < samples.len() {
@@ -218,6 +294,15 @@ fn write_output<T>(
 
         for channel in frame.iter_mut() {
             *channel = T::from_sample(sample);
+        }
+    }
+
+    // Crossed into speech region this buffer → notify lip-sync (once).
+    if start_pos < speech_start && *pos >= speech_start {
+        if let Ok(mut slot) = on_audible.lock() {
+            if let Some(cb) = slot.take() {
+                cb();
+            }
         }
     }
 }

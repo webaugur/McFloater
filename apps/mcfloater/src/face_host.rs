@@ -118,14 +118,22 @@ fn speak_with_face(
     let engine = SpeechEngine::from_env_or(SpeechEngine::DEFAULT);
     let _ = tx.send(FaceEvent::SetState(RuntimeState::Thinking));
     let _ = tx.send(FaceEvent::SetCaption(text.to_string()));
-
-    // Speaking state alone drives lip-sync envelope in the face (do NOT send a
-    // constant Mouth(0.8) — that froze the jaw open like a banana the whole line).
-    let _ = tx.send(FaceEvent::SetState(RuntimeState::Speaking));
     let _ = tx.send(FaceEvent::Mouth(0.0));
 
+    // Do NOT enter Speaking before audio: playback prepends ~320 ms silence so the
+    // sink can wake. Lip-sync starts only when the first speech sample is written
+    // (on_audible). End still lines up because we Idle right after play returns.
     info!(%text, engine = engine.label(), "face → speech");
-    speech::speak_play_only(text, engine, tts)?;
+    let tx_go = tx.clone();
+    speech::speak_play_only_with_audible(
+        text,
+        engine,
+        tts,
+        Box::new(move || {
+            let _ = tx_go.send(FaceEvent::SetState(RuntimeState::Speaking));
+            let _ = tx_go.send(FaceEvent::Mouth(0.0));
+        }),
+    )?;
 
     let _ = tx.send(FaceEvent::Mouth(0.0));
     let _ = tx.send(FaceEvent::SetState(RuntimeState::Idle));
