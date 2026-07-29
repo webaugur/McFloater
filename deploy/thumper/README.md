@@ -2,6 +2,14 @@
 
 See also: [`docs/thumper-master-node.md`](../../docs/thumper-master-node.md)
 
+## Fresh OS / reinstall (Ubuntu 26.04)
+
+```bash
+cd ~/Documents/McFloater/deploy/thumper
+./bootstrap-ubuntu-26.04.sh   # full APT deps + rust + brain unit
+# see REBUILD-AFTER-OS.md
+```
+
 ## Home Assistant
 
 ```bash
@@ -79,6 +87,55 @@ mcfloater health
 mcfloater states --domain switch
 mcfloater ask toggle switch.example
 ```
+
+### Wyoming STT (Whisper) — shared with HA Assist
+
+Same family as [Home Assistant Voice / local Assist](https://www.home-assistant.io/voice_control/voice_remote_local_assistant/).
+
+**Preferred on Thumper (no Docker group needed):**
+
+```bash
+cd ~/Documents/McFloater/deploy/thumper
+./install-wyoming-whisper.sh
+# user service: mcfloater-wyoming-whisper.service → tcp://127.0.0.1:10300
+# mcfloater.env: MCFLOATER_WYOMING_STT=127.0.0.1:10300
+```
+
+Optional Docker (if your user can access docker.sock): `./wyoming-up.sh`.
+
+In HA: **Settings → Devices & services → Add integration → Wyoming Protocol** → host `127.0.0.1` port `10300`.  
+Then **Voice assistants** → pick Whisper STT (+ Piper TTS).
+
+### Ollama dialog
+
+```bash
+# Thumper — full linux amd64 tarball includes llama-server under lib/ollama
+# (binary-only install is not enough). User service example:
+#   ~/.local/bin/ollama + ~/.local/lib/ollama/ + systemctl --user ollama.service
+ollama pull llama3.2:3b
+# mcfloater.env:
+# MCFLOATER_OLLAMA_URL=http://127.0.0.1:11434
+# MCFLOATER_OLLAMA_MODEL=llama3.2:3b
+systemctl --user restart mcfloater-brain
+```
+
+Brain LLM routes:
+
+| Lane | Model | When |
+|------|--------|------|
+| HA code | — | `turn on` / `toggle` … |
+| **Chat** | **Llama 3.1** (`MCFLOATER_OLLAMA_MODEL`) | general local talk |
+| **Instruct** | **Mistral** (`MCFLOATER_OLLAMA_INSTRUCT_MODEL`) | macros, schedules, multi-step directions |
+| **World** | **Grok API** (`XAI_API_KEY`) | physics / real-world knowledge |
+
+```bash
+ollama pull llama3.1:8b
+ollama pull mistral
+# optional cloud:
+# echo 'XAI_API_KEY=…' >> ~/Data/mcfloater/mcfloater.env
+```
+
+Mistral drafts plans; **HA automations** should own real clocks. Grok key never leaves Thumper.
 
 ### Natural TTS (Piper on Thumper)
 

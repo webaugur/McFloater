@@ -74,7 +74,7 @@ pub fn spawn_hud(mut commands: Commands) {
                     TextColor(Color::srgb(0.95, 0.95, 0.7)),
                 ));
                 bot.spawn((
-                    Text::new("Space = speak   A = ask brain   Esc = quit"),
+                    Text::new("Space = speak   A = ask   L = listen   Esc = quit"),
                     TextFont {
                         font_size: 14.0,
                         ..default()
@@ -107,8 +107,11 @@ pub fn update_hud(
         *text = Text::new(status.brain_detail.clone());
     }
     if let Ok(mut color) = brain_color.get_single_mut() {
-        color.0 = if status.brain_ok {
+        // Green = brain + real HA devices; amber = brain up but no C&C entities; red = offline.
+        color.0 = if status.brain_ok && status.ha_control {
             Color::srgb(0.3, 1.0, 0.5)
+        } else if status.brain_ok {
+            Color::srgb(1.0, 0.85, 0.25)
         } else {
             Color::srgb(1.0, 0.4, 0.3)
         };

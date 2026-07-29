@@ -30,12 +30,16 @@ Home automation and assistant C&C live **here**, not in DragonSDR.
 ## Prerequisites
 
 - **Rust** (stable) via [rustup](https://rustup.rs/)
-- **Build tools**: `build-essential`, `pkg-config`
-- **ALSA** (Linux audio): `libasound2-dev`
+- **Thumper (brain host):** run `deploy/thumper/bootstrap-ubuntu-26.04.sh` for the full APT set, or install at least:
 
 ```bash
-sudo apt install build-essential pkg-config libasound2-dev
+# minimal local CLI / brain build (Ubuntu)
+sudo apt install build-essential pkg-config cmake clang libclang-dev \
+  libssl-dev libasound2-dev libudev-dev \
+  python3-venv python3-dev ffmpeg git curl zstd
 ```
+
+Tower face (`--features face`) additionally needs a working Vulkan/Mesa stack on the FirePro machine.
 
 ## Build and run
 

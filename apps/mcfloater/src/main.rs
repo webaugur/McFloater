@@ -76,7 +76,7 @@ enum Command {
     },
 
     /// Bevy face window on local GPUs (Tower5810). Requires `--features face`.
-    /// Space=speak, A=ask brain, Esc=quit
+    /// Space=speak, A=ask, L=listen (mic→STT→chat), Esc=quit
     #[cfg(feature = "face")]
     Face {
         /// Demo line for Space
@@ -129,6 +129,16 @@ enum Command {
 
     /// List locked defaults + optional SAM / Piper voices
     Voices,
+
+    /// Record mic → Wyoming STT on Thumper; optionally chat + speak
+    Listen {
+        /// Also send transcript to brain and speak the reply
+        #[arg(long)]
+        ask: bool,
+        /// Record duration in seconds (default MCFLOATER_LISTEN_SECS or 5)
+        #[arg(long)]
+        secs: Option<f32>,
+    },
 }
 
 fn main() -> ExitCode {
@@ -203,6 +213,9 @@ fn main() -> ExitCode {
             )
         }
         Some(Command::Voices) => cmd_voices(),
+        Some(Command::Listen { ask, secs }) => {
+            cmd_listen(ask, secs, default_engine, &tts, args.no_play)
+        }
     };
 
     match result {
@@ -300,11 +313,28 @@ fn cmd_health() -> Result<(), String> {
         let client = BrainClient::new(&url)?;
         let h = client.health()?;
         println!(
-            "brain: ok={} ha_ok={} tts_ok={} tts_busy={} inflight={} msg={:?}",
-            h.ok, h.ha_ok, h.tts_ok, h.tts_busy, h.tts_inflight, h.ha_message
+            "brain: ok={} ha_ok={} ha_control_ok={} tts_ok={} tts_busy={} inflight={} stt_ok={} llm_ok={} msg={:?}",
+            h.ok,
+            h.ha_ok,
+            h.ha_control_ok,
+            h.tts_ok,
+            h.tts_busy,
+            h.tts_inflight,
+            h.stt_ok,
+            h.llm_ok,
+            h.ha_message
         );
+        if let Some(c) = &h.ha_control {
+            println!("ha_control: {c}");
+        }
         if let Some(tts) = &h.tts {
             println!("tts: {tts}");
+        }
+        if let Some(stt) = &h.stt {
+            println!("stt: {stt}");
+        }
+        if let Some(llm) = &h.llm {
+            println!("llm: {llm}");
         }
         if speech::prefer_sam_next() {
             println!("client: prefer SAM for next speech (prior overload/error)");
@@ -400,4 +430,33 @@ fn cmd_ask(
     println!("state: {}", resp.state);
     println!("reply: {}", resp.reply);
     speech::speak(resp.reply.as_str(), engine, tts, output, no_play)
+}
+
+fn cmd_listen(
+    ask: bool,
+    secs: Option<f32>,
+    engine: SpeechEngine,
+    tts: &FloatyTtsConfig,
+    no_play: bool,
+) -> Result<(), String> {
+    use mcfloater_audio::{listen_secs, record_wav_mono};
+    use std::time::Duration;
+
+    let url = brain_url().ok_or_else(|| {
+        "MCFLOATER_BRAIN_URL not set (needed for STT on Thumper)".to_string()
+    })?;
+    let duration = Duration::from_secs_f32(secs.unwrap_or_else(listen_secs).clamp(1.0, 30.0));
+    info!(?duration, "recording mic for STT");
+    eprintln!(
+        "Listening for {:.0}s — speak now…",
+        duration.as_secs_f32()
+    );
+    let wav = record_wav_mono(duration).map_err(|e| e.to_string())?;
+    let client = BrainClient::new_with_timeout(&url, Duration::from_secs(120))?;
+    let text = client.stt_wav(&wav)?;
+    println!("transcript: {text}");
+    if !ask {
+        return Ok(());
+    }
+    cmd_ask(&text, engine, tts, None, no_play)
 }

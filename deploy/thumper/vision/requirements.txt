@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+pillow
+numpy
+torch==2.8.0
+torchvision==0.23.0
+# LingBot-Map and FlashInfer are installed separately via pip install -e . and the FlashInfer wheel
+# See deploy/thumper/vision/README.md for full install instructions

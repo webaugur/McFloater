@@ -26,7 +26,12 @@ pub const RENDER_TARGET_FPS: u32 = 60;
 pub enum FaceEvent {
     SetState(RuntimeState),
     SetCaption(String),
-    BrainStatus { ok: bool, detail: String },
+    /// `ok` = brain reachable. `ha_control` = real C&C entities exist (not just API up).
+    BrainStatus {
+        ok: bool,
+        ha_control: bool,
+        detail: String,
+    },
     Mouth(f32),
     Quit,
 }
@@ -35,6 +40,8 @@ pub enum FaceEvent {
 pub enum FaceRequest {
     Speak(String),
     Ask(String),
+    /// Push-to-talk listen window → STT → chat → speak.
+    Listen,
     Quit,
 }
 
@@ -49,6 +56,8 @@ pub struct FaceStatus {
     pub state: RuntimeState,
     pub caption: String,
     pub brain_ok: bool,
+    /// True only when HA has switch/light/scene entities (real C&C).
+    pub ha_control: bool,
     pub brain_detail: String,
     pub mouth: f32,
     pub speak_phase: SpeakPhase,
@@ -58,8 +67,9 @@ impl Default for FaceStatus {
     fn default() -> Self {
         Self {
             state: RuntimeState::Idle,
-            caption: "FLOATY McFLOATER — Space speak · A ask · Esc quit".into(),
+            caption: "FLOATY McFLOATER — Space speak · A ask · L listen · Esc quit".into(),
             brain_ok: false,
+            ha_control: false,
             brain_detail: "brain: not checked".into(),
             mouth: 0.0,
             speak_phase: SpeakPhase::Closed,
@@ -204,8 +214,13 @@ fn drain_events(bridge: Res<FaceBridge>, mut status: ResMut<FaceStatus>) {
                 }
             }
             FaceEvent::SetCaption(c) => status.caption = c,
-            FaceEvent::BrainStatus { ok, detail } => {
+            FaceEvent::BrainStatus {
+                ok,
+                ha_control,
+                detail,
+            } => {
                 status.brain_ok = ok;
+                status.ha_control = ha_control;
                 status.brain_detail = detail;
             }
             FaceEvent::Mouth(m) => {
@@ -237,6 +252,12 @@ fn keyboard_controls(
     }
     if keys.just_pressed(KeyCode::KeyA) && status.state != RuntimeState::Speaking {
         let _ = bridge.requests_tx.send(FaceRequest::Ask(lines.ask.clone()));
+    }
+    if keys.just_pressed(KeyCode::KeyL)
+        && status.state != RuntimeState::Speaking
+        && status.state != RuntimeState::Listening
+    {
+        let _ = bridge.requests_tx.send(FaceRequest::Listen);
     }
 }
 

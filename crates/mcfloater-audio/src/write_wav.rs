@@ -1,5 +1,4 @@
-use std::fs::File;
-use std::io::{self, Write};
+use std::io;
 use std::path::Path;
 
 #[derive(Debug, thiserror::Error)]
@@ -33,30 +32,35 @@ pub fn write_wav_u8_mono(path: &Path, samples: &[u8], sample_rate: u32) -> Resul
 }
 
 fn write_wav_i16_mono(path: &Path, samples: &[i16], sample_rate: u32) -> Result<(), WriteWavError> {
-    let mut file = File::create(path)?;
+    let bytes = write_wav_i16_mono_bytes(samples, sample_rate)?;
+    std::fs::write(path, bytes)?;
+    Ok(())
+}
+
+/// Encode mono 16-bit PCM as an in-memory WAV (for STT upload).
+pub fn write_wav_i16_mono_bytes(samples: &[i16], sample_rate: u32) -> Result<Vec<u8>, WriteWavError> {
     let data_size = (samples.len() * 2) as u32;
     let channels: u16 = 1;
     let bits_per_sample: u16 = 16;
     let byte_rate = sample_rate * channels as u32 * bits_per_sample as u32 / 8;
     let block_align = channels * bits_per_sample / 8;
 
-    file.write_all(b"RIFF")?;
-    file.write_all(&(36 + data_size).to_le_bytes())?;
-    file.write_all(b"WAVE")?;
-    file.write_all(b"fmt ")?;
-    file.write_all(&16u32.to_le_bytes())?;
-    file.write_all(&1u16.to_le_bytes())?; // PCM
-    file.write_all(&channels.to_le_bytes())?;
-    file.write_all(&sample_rate.to_le_bytes())?;
-    file.write_all(&byte_rate.to_le_bytes())?;
-    file.write_all(&block_align.to_le_bytes())?;
-    file.write_all(&bits_per_sample.to_le_bytes())?;
-    file.write_all(b"data")?;
-    file.write_all(&data_size.to_le_bytes())?;
-
+    let mut out = Vec::with_capacity(44 + samples.len() * 2);
+    out.extend_from_slice(b"RIFF");
+    out.extend_from_slice(&(36 + data_size).to_le_bytes());
+    out.extend_from_slice(b"WAVE");
+    out.extend_from_slice(b"fmt ");
+    out.extend_from_slice(&16u32.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes()); // PCM
+    out.extend_from_slice(&channels.to_le_bytes());
+    out.extend_from_slice(&sample_rate.to_le_bytes());
+    out.extend_from_slice(&byte_rate.to_le_bytes());
+    out.extend_from_slice(&block_align.to_le_bytes());
+    out.extend_from_slice(&bits_per_sample.to_le_bytes());
+    out.extend_from_slice(b"data");
+    out.extend_from_slice(&data_size.to_le_bytes());
     for sample in samples {
-        file.write_all(&sample.to_le_bytes())?;
+        out.extend_from_slice(&sample.to_le_bytes());
     }
-
-    Ok(())
+    Ok(out)
 }

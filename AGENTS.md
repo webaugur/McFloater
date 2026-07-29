@@ -26,6 +26,28 @@
 Do **not** put the long-lived HA token on Tower if the brain API can own device calls.  
 Do **not** X11-forward the avatar — run the GUI **natively** on Tower (`DISPLAY=:0`).
 
+---
+
+## IndianaDell integration note (2026-07-, created by Grok session)
+
+`bin/verify-indianadell.sh` (stub) was added so that
+`~/Documents/IndianaDell/bin/fix-indianadell.sh`
+can discover and optionally invoke McFloater verification without
+hard-coding paths or making the IndianaDell compatibility check fatal
+when McFloater is absent or incomplete.  The hook is deliberately
+non-fatal.  Real master-node / brain / HA verification belongs in
+`deploy/thumper/` or a future `tools/verify-master-node.sh`.  Keep the
+filename `verify-indianadell.sh` so the IndianaDell hook continues to
+find it.
+
+## Desktop launchers (note for DragonSDR / IndianaDell sessions)
+
+When other agents add or change `.desktop` files in `~/Applications/`,
+remind them to run both:
+  `~/Documents/IndianaDell/scripts/gnome/fix-nautilus-desktop-launch.sh`
+  `~/Documents/IndianaDell/scripts/gnome/sync-desktop-icons.sh --dir ~/Applications`
+(The first restores double-click; the second sets the branded icon via GIO metadata.)
+
 ## Thumper master node
 
 | Doc | Content |
@@ -65,6 +87,19 @@ Use:
 ```
 
 Do **not** claim face **A** / `mcfloater ask` is fixed until Thumper has been rebuilt and restarted.
+
+### Voice stack (prefer Wyoming / HA Assist tools)
+
+Align with Home Assistant Voice / [Wyoming](https://www.home-assistant.io/integrations/wyoming/) — same services for HA Assist and McFloater:
+
+| Service | Role | Thumper |
+|---------|------|---------|
+| **wyoming-whisper** | STT | `deploy/thumper/wyoming-up.sh` → `:10300` |
+| **Piper** (CLI or wyoming-piper) | TTS | already installed under `~/Data/mcfloater/piper` |
+| **Ollama** | open dialog | `MCFLOATER_OLLAMA_*` |
+| **HA Assist** | home control sentences | expose entities; optional Wyoming in HA UI |
+
+Do **not** invent a one-off STT stack when Wyoming Whisper can be shared.
 
 ## Related repos
 

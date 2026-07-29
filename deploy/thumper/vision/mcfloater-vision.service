@@ -1,0 +1,14 @@
+[Unit]
+Description=McFloater Vision Service (LingBot-Map)
+After=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/mcfloater/vision.env
+ExecStart=%h/.local/bin/mcfloater-vision
+Restart=on-failure
+RestartSec=5
+Nice=5
+
+[Install]
+WantedBy=default.target

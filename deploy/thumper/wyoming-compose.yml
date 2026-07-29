@@ -1,0 +1,62 @@
+# Wyoming voice services for HA Assist + McFloater brain (shared stack).
+# Same family as Home Assistant Voice / Nabu Casa Assist pipeline.
+#
+# Usage on Thumper:
+#   cd ~/Documents/McFloater/deploy/thumper
+#   docker compose -f wyoming-compose.yml up -d
+#
+# Ports (host network style via published ports):
+#   10300  wyoming-whisper  (STT)
+#   10200  wyoming-piper    (TTS)  — optional if you keep CLI Piper
+#
+# HA UI: Settings → Devices & services → Add Wyoming Protocol
+#   host=127.0.0.1  port=10300 (Whisper), again for 10200 (Piper)
+#
+# McFloater brain env (~/Data/mcfloater/mcfloater.env):
+#   MCFLOATER_WYOMING_STT=127.0.0.1:10300
+#   MCFLOATER_WYOMING_TTS=127.0.0.1:10200   # optional later
+
+services:
+  wyoming-whisper:
+    container_name: mcfloater-wyoming-whisper
+    image: rhasspy/wyoming-whisper:latest
+    restart: unless-stopped
+    ports:
+      - "10300:10300"
+    volumes:
+      - ${MCFLOATER_WYOMING_DATA:-/home/user/Data/mcfloater/wyoming}/whisper:/data
+    command:
+      - --model
+      - ${MCFLOATER_WHISPER_MODEL:-tiny-int8}
+      - --language
+      - ${MCFLOATER_WHISPER_LANG:-en}
+      - --uri
+      - tcp://0.0.0.0:10300
+      - --data-dir
+      - /data
+    # Uncomment when GPU docker runtime is ready on Thumper:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # Optional: share Piper with HA Assist. McFloater CLI Piper remains the default TTS path.
+  wyoming-piper:
+    container_name: mcfloater-wyoming-piper
+    image: rhasspy/wyoming-piper:latest
+    restart: unless-stopped
+    profiles: ["piper"]
+    ports:
+      - "10200:10200"
+    volumes:
+      - ${MCFLOATER_WYOMING_DATA:-/home/user/Data/mcfloater/wyoming}/piper:/data
+    command:
+      - --voice
+      - ${MCFLOATER_PIPER_VOICE:-en_US-ryan-medium}
+      - --uri
+      - tcp://0.0.0.0:10200
+      - --data-dir
+      - /data

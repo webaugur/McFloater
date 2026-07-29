@@ -54,6 +54,28 @@ pub struct EntityState {
     pub attributes: Value,
 }
 
+/// Controllable-ish entity counts for honest health / HUD.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct HaControlInventory {
+    pub switches: usize,
+    pub lights: usize,
+    pub scenes: usize,
+    pub total_entities: usize,
+}
+
+impl HaControlInventory {
+    pub fn control_ok(&self) -> bool {
+        self.switches + self.lights + self.scenes > 0
+    }
+
+    pub fn summary(&self) -> String {
+        format!(
+            "{} sw · {} lt · {} sc ({} entities)",
+            self.switches, self.lights, self.scenes, self.total_entities
+        )
+    }
+}
+
 /// Blocking REST client (CLI + simple brain handlers).
 #[derive(Debug, Clone)]
 pub struct HaClient {
@@ -113,6 +135,25 @@ impl HaClient {
         })
     }
 
+    /// Count of domains useful for C&C (switch / light / scene).
+    pub fn control_inventory(&self) -> Result<HaControlInventory, HaError> {
+        let all = self.states(None)?;
+        let mut inv = HaControlInventory::default();
+        for e in &all {
+            let Some((dom, _)) = e.entity_id.split_once('.') else {
+                continue;
+            };
+            match dom {
+                "switch" => inv.switches += 1,
+                "light" => inv.lights += 1,
+                "scene" => inv.scenes += 1,
+                _ => {}
+            }
+        }
+        inv.total_entities = all.len();
+        Ok(inv)
+    }
+
     /// `GET /api/states/{entity_id}`
     pub fn state(&self, entity_id: &str) -> Result<EntityState, HaError> {
         let path = format!("api/states/{entity_id}");
@@ -142,7 +183,6 @@ impl HaClient {
         }
         debug!(%url, %body, "HA POST service");
         let resp = self.http.post(url).json(&body).send()?;
-        // HA often returns a list of changed states (or empty).
         let status = resp.status();
         let text = resp.text()?;
         if !status.is_success() {

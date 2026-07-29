@@ -1,0 +1,131 @@
+# ESPHome configuration for KMC / Tuya 4-outlet power strip (TYWE3S / ESP8266-12E)
+#
+# Device: KMC or generic Tuya 4-outlet smart power strip using TYWE3S/ESP-12E module
+# Chipset: ESP8266EX (full ESP-12E form factor common on strips)
+# Target: Local LAN control via Home Assistant (no cloud)
+#
+# Flashing method: Serial (USB-UART 3.3 V) on Tower5810 — same wiring as the single-plug target.
+#   See deploy/thumper/esphome/README.md for cable, bootloader entry, and esphome run instructions.
+#
+# GPIO mapping: These defaults are COMMON for many 4-outlet Tuya strips.
+#               You MUST verify with a multimeter or board inspection.
+#               Typical layout on these boards:
+#                 Relays: GPIO4, GPIO5, GPIO12, GPIO13 (or slight permutations)
+#                 Button: GPIO0 (often shared with flash button) or GPIO3
+#                 Status LED: GPIO2 (blue, inverted) or GPIO16
+#
+# After flashing, four independent switch entities will appear in Home Assistant.
+# The McFloater brain will then report ha_control_ok: true.
+
+esphome:
+  name: kmc-strip-01
+  friendly_name: "KMC 4-Outlet Strip"
+
+esp8266:
+  board: esp12e                 # Full ESP-12E module (common on multi-outlet strips)
+  # Some boards use 1 MB flash; others 2 MB. Start with esp12e and adjust if OTA fails.
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "KMC-Strip-01 Fallback"
+    password: !secret fallback_ap_password
+
+captive_portal:
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  platform: esphome
+  password: !secret ota_password
+
+logger:
+  baud_rate: 115200
+
+status_led:
+  pin:
+    number: GPIO2
+    inverted: true
+
+# --- 4 RELAYS / OUTLETS ---
+# Common pinout for 4-outlet Tuya/KMC strips with TYWE3S/ESP-12E.
+# Verify each relay with a continuity test or by tracing the driver transistor.
+switch:
+  - platform: gpio
+    name: "KMC Strip Outlet 1"
+    id: outlet1
+    pin: GPIO4                    # <-- VERIFY
+    restore_mode: RESTORE_DEFAULT_OFF
+    icon: "mdi:power-socket-us"
+
+  - platform: gpio
+    name: "KMC Strip Outlet 2"
+    id: outlet2
+    pin: GPIO5                    # <-- VERIFY
+    restore_mode: RESTORE_DEFAULT_OFF
+    icon: "mdi:power-socket-us"
+
+  - platform: gpio
+    name: "KMC Strip Outlet 3"
+    id: outlet3
+    pin: GPIO12                   # <-- VERIFY
+    restore_mode: RESTORE_DEFAULT_OFF
+    icon: "mdi:power-socket-us"
+
+  - platform: gpio
+    name: "KMC Strip Outlet 4"
+    id: outlet4
+    pin: GPIO13                   # <-- VERIFY
+    restore_mode: RESTORE_DEFAULT_OFF
+    icon: "mdi:power-socket-us"
+
+# --- SINGLE BUTTON (controls all outlets or first outlet — customize as needed) ---
+# Many strips have one physical button. Common pins: GPIO0 or GPIO3.
+binary_sensor:
+  - platform: gpio
+    name: "KMC Strip Button"
+    pin:
+      number: GPIO0               # <-- VERIFY (often the boot/flash button)
+      mode: INPUT_PULLUP
+      inverted: true
+    on_press:
+      # Example: toggle outlet 1. Change to a script that cycles outlets if desired.
+      - switch.toggle: outlet1
+    filters:
+      - delayed_on: 50ms
+      - delayed_off: 50ms
+
+# Optional: per-outlet status LEDs (some boards have individual blue LEDs)
+# Uncomment and map the correct pins if your strip has them.
+#
+# status_leds:
+#   - platform: gpio
+#     pin: GPIO14
+#     id: led1
+#   ... etc.
+
+# Diagnostics
+sensor:
+  - platform: uptime
+    name: "KMC Strip Uptime"
+  - platform: wifi_signal
+    name: "KMC Strip WiFi Signal"
+    update_interval: 60s
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "KMC Strip IP"
+    ssid:
+      name: "KMC Strip SSID"
+
+# --- McFloater integration note ---
+# After the four outlets appear as switch entities in Home Assistant,
+# the brain health check will report ha_control_ok: true and the assistant
+# can control any of the four outlets independently via voice.
+#
+# If any outlet does not respond, correct the GPIO pin and re-flash.
+# The four switches are independent — no interlock logic is included by default.

@@ -108,8 +108,8 @@ Details: [`deploy/thumper/audio/README.md`](../deploy/thumper/audio/README.md)
 | A | Docs + `deploy/thumper` in this repo | In progress |
 | B | HA Core + local Tuya/KMC plugs | Half (UI up; plugs not done) |
 | B′ | **Brain service** on Thumper (HA client + health + chat intents) | **Scaffolded** (`mcfloater brain`) |
-| C | STT on Thumper; Tower streams audio / text | Planned |
-| D | Intents → lamp control via HA | Lite phrases work; Ollama later |
+| C | STT on Thumper (Wyoming Whisper); Tower mic upload | Scaffolded (`/v1/stt`, face **L**, `mcfloater listen`) |
+| D | Intents → lamp control via HA | Lite phrases + **Ollama** for open chat |
 | 1+ | Bevy face on Tower GPUs; brain status + SAM from GUI | **Scaffolded** (`--features face` → `mcfloater face`) |
 | E | Video call / reach-you | Deferred |
 

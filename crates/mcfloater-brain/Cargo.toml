@@ -9,9 +9,14 @@ description = "McFloater brain service — HA hands + simple intents (Thumper)"
 [dependencies]
 axum = { workspace = true }
 mcfloater-ha = { workspace = true }
+reqwest = { workspace = true, features = ["multipart"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
-tower-http = { version = "0.6", features = ["cors", "trace"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "fs"] }
 tracing = { workspace = true }
+webrtc = "0.17"
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+mcfloater-avatar = { path = "../mcfloater-avatar" }
+uuid = { version = "1", features = ["v4"] }

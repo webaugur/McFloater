@@ -8,9 +8,16 @@ use serde_json::Value;
 pub struct HealthResponse {
     pub ok: bool,
     pub service: String,
+    /// HA REST reachable with valid token (API up).
     pub ha_ok: bool,
+    /// At least one switch/light/scene exists (actual C&C possible).
+    #[serde(default)]
+    pub ha_control_ok: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ha_message: Option<String>,
+    /// Short device inventory, e.g. "0 sw · 0 lt · 0 sc".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ha_control: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ha: Option<Value>,
     /// Natural TTS (Piper on Thumper) ready.
@@ -24,6 +31,23 @@ pub struct HealthResponse {
     pub tts_inflight: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tts: Option<String>,
+    /// Wyoming Whisper (or other ASR) reachable.
+    #[serde(default)]
+    pub stt_ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stt: Option<String>,
+    /// Ollama dialog reachable.
+    #[serde(default)]
+    pub llm_ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llm: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SttResponse {
+    pub text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

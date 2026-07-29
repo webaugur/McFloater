@@ -1,6 +1,8 @@
 //! Thin HTTP client for the McFloater brain (Tower → Thumper).
 
-use mcfloater_brain::{ChatRequest, ChatResponse, HealthResponse, StatesResponse, TtsRequest};
+use mcfloater_brain::{
+    ChatRequest, ChatResponse, HealthResponse, StatesResponse, SttResponse, TtsRequest,
+};
 use mcfloater_ha::EntityState;
 use reqwest::blocking::Client;
 use serde_json::{json, Value};
@@ -57,6 +59,29 @@ impl BrainClient {
 
     pub fn chat(&self, text: &str) -> Result<ChatResponse, String> {
         self.post_json("/v1/chat", &ChatRequest { text: text.into() })
+    }
+
+    /// Speech-to-text on Thumper (Wyoming Whisper). Body is WAV bytes.
+    pub fn stt_wav(&self, wav: &[u8]) -> Result<String, String> {
+        let url = self.url("/v1/stt");
+        let resp = self
+            .http
+            .post(&url)
+            .header("Content-Type", "audio/wav")
+            .body(wav.to_vec())
+            .send()
+            .map_err(|e| e.to_string())?;
+        let status = resp.status();
+        let text = resp.text().map_err(|e| e.to_string())?;
+        if !status.is_success() {
+            return Err(format!("brain STT {status}: {text}"));
+        }
+        let parsed: SttResponse =
+            serde_json::from_str(&text).map_err(|e| format!("STT JSON: {e}; body={text}"))?;
+        if let Some(err) = parsed.error {
+            return Err(err);
+        }
+        Ok(parsed.text)
     }
 
     /// Natural TTS on Thumper (Piper). Returns raw WAV bytes.

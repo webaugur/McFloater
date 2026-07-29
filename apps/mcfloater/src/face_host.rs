@@ -30,7 +30,7 @@ pub fn run_face_host(tts: FloatyTtsConfig, demo_line: String) -> Result<(), Stri
     };
 
     let _ = events_tx.send(FaceEvent::SetCaption(
-        "FLOATY McFLOATER — Space speak · A ask brain · Esc quit".into(),
+        "FLOATY McFLOATER — Space speak · A ask · L listen · Esc quit".into(),
     ));
 
     mcfloater_render::run_face(events_rx, req_tx, lines);
@@ -39,45 +39,67 @@ pub fn run_face_host(tts: FloatyTtsConfig, demo_line: String) -> Result<(), Stri
 
 fn brain_poll_loop(tx: Sender<FaceEvent>) {
     loop {
-        let detail = match brain_url() {
-            None => {
-                let _ = tx.send(FaceEvent::BrainStatus {
-                    ok: false,
-                    detail: "BRAIN: set MCFLOATER_BRAIN_URL".into(),
-                });
-                thread::sleep(Duration::from_secs(5));
-                continue;
-            }
+        let status = match brain_url() {
+            None => FaceEvent::BrainStatus {
+                ok: false,
+                ha_control: false,
+                detail: "BRAIN: set MCFLOATER_BRAIN_URL".into(),
+            },
             Some(url) => match BrainClient::new(&url).and_then(|c| c.health()) {
-                Ok(h) if h.ok && h.ha_ok => {
-                    let tts = if h.tts_busy {
-                        "TTS:BUSY"
-                    } else if h.tts_ok {
-                        "TTS:OK"
-                    } else {
-                        "TTS:OFF"
-                    };
-                    (
-                        true,
-                        format!("BRAIN: OK  HA: OK  {tts}  ({url})"),
-                    )
+                Ok(h) if h.ok && h.ha_ok && h.ha_control_ok => {
+                    let tts = tts_tag(&h);
+                    let inv = h.ha_control.as_deref().unwrap_or("devices ok");
+                    FaceEvent::BrainStatus {
+                        ok: true,
+                        ha_control: true,
+                        detail: format!("BRAIN OK · HA C&C {inv} · {tts}"),
+                    }
                 }
-                Ok(h) if h.ok => (
-                    false,
-                    format!(
-                        "BRAIN: OK  HA: FAIL  {}",
+                Ok(h) if h.ok && h.ha_ok => {
+                    // API token works but no switch/light/scene — do not claim C&C.
+                    let tts = tts_tag(&h);
+                    let inv = h
+                        .ha_control
+                        .as_deref()
+                        .unwrap_or("0 sw · 0 lt · 0 sc");
+                    FaceEvent::BrainStatus {
+                        ok: true,
+                        ha_control: false,
+                        detail: format!("BRAIN OK · HA API · NO DEVICES ({inv}) · {tts}"),
+                    }
+                }
+                Ok(h) if h.ok => FaceEvent::BrainStatus {
+                    ok: true,
+                    ha_control: false,
+                    detail: format!(
+                        "BRAIN OK · HA FAIL {}",
                         h.ha_message.unwrap_or_default()
                     ),
-                ),
-                Ok(_) => (false, "BRAIN: degraded".into()),
-                Err(err) => (false, format!("BRAIN: offline ({err})")),
+                },
+                Ok(_) => FaceEvent::BrainStatus {
+                    ok: false,
+                    ha_control: false,
+                    detail: "BRAIN: degraded".into(),
+                },
+                Err(err) => FaceEvent::BrainStatus {
+                    ok: false,
+                    ha_control: false,
+                    detail: format!("BRAIN: offline ({err})"),
+                },
             },
         };
-        let _ = tx.send(FaceEvent::BrainStatus {
-            ok: detail.0,
-            detail: detail.1,
-        });
+        let _ = tx.send(status);
         thread::sleep(Duration::from_secs(3));
+    }
+}
+
+fn tts_tag(h: &mcfloater_brain::HealthResponse) -> &'static str {
+    if h.tts_busy {
+        "TTS:BUSY"
+    } else if h.tts_ok {
+        "TTS:OK"
+    } else {
+        "TTS:OFF"
     }
 }
 
@@ -103,6 +125,13 @@ fn host_request_loop(
                 if let Err(err) = ask_with_face(&tx, &tts, &text) {
                     error!(%err, "face ask failed");
                     let _ = tx.send(FaceEvent::SetCaption(format!("ask error: {err}")));
+                    let _ = tx.send(FaceEvent::SetState(RuntimeState::Idle));
+                }
+            }
+            FaceRequest::Listen => {
+                if let Err(err) = listen_with_face(&tx, &tts) {
+                    error!(%err, "face listen failed");
+                    let _ = tx.send(FaceEvent::SetCaption(format!("listen error: {err}")));
                     let _ = tx.send(FaceEvent::SetState(RuntimeState::Idle));
                 }
             }
@@ -171,5 +200,38 @@ fn ask_with_face(
         );
     }
 
+    speak_with_face(tx, tts, &resp.reply)
+}
+
+/// Record mic → Wyoming STT on Thumper → chat → speak.
+fn listen_with_face(tx: &Sender<FaceEvent>, tts: &FloatyTtsConfig) -> Result<(), String> {
+    use mcfloater_audio::{listen_secs, record_wav_mono};
+    use std::time::Duration;
+
+    let url = brain_url().ok_or_else(|| "MCFLOATER_BRAIN_URL not set".to_string())?;
+    let secs = listen_secs();
+    let _ = tx.send(FaceEvent::SetState(RuntimeState::Listening));
+    let _ = tx.send(FaceEvent::SetCaption(format!(
+        "listening… ({secs:.0}s) — speak now"
+    )));
+
+    info!(secs, "face → mic capture");
+    let wav = record_wav_mono(Duration::from_secs_f32(secs)).map_err(|e| e.to_string())?;
+
+    let _ = tx.send(FaceEvent::SetState(RuntimeState::Thinking));
+    let _ = tx.send(FaceEvent::SetCaption("transcribing…".into()));
+    let client = BrainClient::new_with_timeout(&url, Duration::from_secs(120))?;
+    let transcript = client.stt_wav(&wav)?;
+    info!(%transcript, "STT transcript");
+    let _ = tx.send(FaceEvent::SetCaption(format!("you: {transcript}")));
+
+    let _ = tx.send(FaceEvent::SetState(RuntimeState::Thinking));
+    let resp = client.chat(&transcript)?;
+    if let Some(err) = &resp.error {
+        warn!(%err, "brain error after listen");
+    }
+    for a in &resp.actions {
+        info!(entity = %a.entity_id, service = %a.service, "face action");
+    }
     speak_with_face(tx, tts, &resp.reply)
 }

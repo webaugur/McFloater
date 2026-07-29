@@ -1,0 +1,20 @@
+[Unit]
+Description=McFloater Wyoming Faster-Whisper STT (HA Assist + brain)
+Documentation=https://github.com/rhasspy/wyoming-faster-whisper
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=HOME=%h
+# Prefer user-local install from: pip install --user wyoming-faster-whisper
+ExecStart=%h/.local/bin/wyoming-faster-whisper \
+  --model tiny-int8 \
+  --language en \
+  --uri tcp://0.0.0.0:10300 \
+  --data-dir %h/Data/mcfloater/wyoming/whisper
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

@@ -9,6 +9,7 @@ members = [
     "crates/mcfloater-render",
     "crates/mcfloater-ha",
     "crates/mcfloater-brain",
+    "crates/mcfloater-avatar",
     "apps/mcfloater",
 ]
 
@@ -19,7 +20,7 @@ license = "MIT"
 repository = "https://github.com/webaugur/McFloater"
 
 [workspace.dependencies]
-axum = "0.8"
+axum = { version = "0.8", features = ["ws"] }
 # Bevy 0.15 on Mesa RADV (FirePro / GCN). Prefer Vulkan; if needed: WGPU_BACKEND=gl
 # default-features = false: drop audio/gltf/animation/picking/android — much lighter compiles.
 bevy = { version = "0.15", default-features = false, features = [
