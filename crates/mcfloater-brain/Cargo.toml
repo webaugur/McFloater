@@ -17,6 +17,7 @@ tokio = { workspace = true }
 tower-http = { version = "0.6", features = ["cors", "trace", "fs"] }
 tracing = { workspace = true }
 webrtc = "0.17"
+bytes = "1"
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
 mcfloater-avatar = { path = "../mcfloater-avatar" }
 uuid = { version = "1", features = ["v4"] }
