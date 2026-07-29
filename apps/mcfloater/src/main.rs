@@ -305,7 +305,9 @@ fn run_brain(bind: Option<String>) -> Result<(), String> {
         .enable_all()
         .build()
         .map_err(|e| e.to_string())?;
-    rt.block_on(async move { serve(addr, ha).await.map_err(|e| e.to_string()) })
+    // HTTPS is enabled by default. Use --http-only to force plain HTTP.
+    let https = !std::env::var("MCFLOATER_HTTPS").map(|v| v == "0" || v.eq_ignore_ascii_case("false")).unwrap_or(false);
+    rt.block_on(async move { serve(addr, ha, https).await.map_err(|e| e.to_string()) })
 }
 
 fn cmd_health() -> Result<(), String> {

@@ -21,3 +21,6 @@ bytes = "1"
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
 mcfloater-avatar = { path = "../mcfloater-avatar" }
 uuid = { version = "1", features = ["v4"] }
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+rcgen = "0.13"
+rustls = { version = "0.23", default-features = false, features = ["ring"] }

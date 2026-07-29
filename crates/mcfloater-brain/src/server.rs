@@ -60,10 +60,12 @@ pub struct StatesQuery {
     pub domain: Option<String>,
 }
 
-/// Run the brain HTTP server until cancelled (blocking via tokio runtime from caller).
+/// Run the brain HTTP/HTTPS server until cancelled.
+/// HTTPS is enabled by default (self-signed cert). Pass `https = false` for plain HTTP.
 pub async fn serve(
     bind: SocketAddr,
     ha_config: HaConfig,
+    https: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let ha = HaClient::new(&ha_config)?;
     let tts = TtsConfig::from_env();
@@ -117,9 +119,31 @@ pub async fn serve(
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
-    info!(%bind, "McFloater brain listening");
-    let listener = tokio::net::TcpListener::bind(bind).await?;
-    axum::serve(listener, app).await?;
+    info!(%bind, "McFloater brain listening (HTTPS enabled by default)");
+
+    if https {
+        // Generate a self-signed certificate for thumper.local + common IPs
+        let cert = rcgen::generate_simple_self_signed(vec![
+            "thumper.local".into(),
+            "localhost".into(),
+            "127.0.0.1".into(),
+        ])?;
+        let cert_pem = cert.cert.pem();
+        let key_pem = cert.key_pair.serialize_pem();
+
+        let config = axum_server::tls_rustls::RustlsConfig::from_pem(
+            cert_pem.into_bytes(),
+            key_pem.into_bytes(),
+        )
+        .await?;
+
+        axum_server::bind_rustls(bind, config)
+            .serve(app.into_make_service())
+            .await?;
+    } else {
+        let listener = tokio::net::TcpListener::bind(bind).await?;
+        axum::serve(listener, app).await?;
+    }
     Ok(())
 }
 
