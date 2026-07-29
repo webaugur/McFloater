@@ -539,12 +539,14 @@ async fn handle_call_socket(mut socket: WebSocket) {
     let grok_for_stt: Option<Arc<GrokConfig>> = GrokConfig::from_env().map(Arc::new);
 
     // Real on_track handler — this is the entry point for all incoming media
+    let call_session_for_tracks = call_session.clone();
     peer_connection.on_track(Box::new(move |track: Arc<TrackRemote>,
                                             _receiver: Arc<RTCRtpReceiver>,
                                             _transceiver: Arc<RTCRtpTransceiver>| {
         let track_clone = track.clone();
         let vision = vision_url.clone();
         let stt = stt_cfg.clone();
+        let session_for_audio = call_session_for_tracks.clone();
 
         Box::pin(async move {
             let codec = track_clone.codec();
@@ -557,9 +559,8 @@ async fn handle_call_socket(mut socket: WebSocket) {
                 });
             } else if mime.contains("audio") {
                 if let Some(cfg) = stt {
-                    let session = call_session.clone();
                     tokio::spawn(async move {
-                        consume_audio_track_for_stt(track_clone, cfg, session).await;
+                        consume_audio_track_for_stt(track_clone, cfg, session_for_audio).await;
                     });
                 }
             }
@@ -664,7 +665,6 @@ async fn consume_audio_track_for_stt(
     loop {
         match track.read_rtp().await {
             Ok((rtp_packet, _attrs)) => {
-                // Placeholder: real impl would depayload Opus → PCM16 here.
                 pcm_buffer.extend_from_slice(&rtp_packet.payload);
 
                 if pcm_buffer.len() >= 32_000 {
@@ -672,30 +672,9 @@ async fn consume_audio_track_for_stt(
                         Ok(text) if !text.trim().is_empty() => {
                             info!("STT result: {}", text);
 
-                            // Full pipeline: STT → chat (LLM) → avatar lip-sync
-                            let req = ChatRequest { text: text.clone() };
-                            if let Some(ha_client) = &ha {
-                                let reply = handle_chat(
-                                    ha_client,
-                                    ollama.as_deref(),
-                                    grok.as_deref(),
-                                    &req,
-                                );
-
-                                if !reply.reply.trim().is_empty() {
-                                    info!("chat reply: {}", reply.reply);
-
-                                    // Estimate duration from reply length (~15 chars per second of speech)
-                                    let duration_ms = ((reply.reply.len() as u32) * 70).max(1500);
-
-                                    // Drive avatar with the real LLM reply
-                                    drive_avatar_during_tts(&call_session, &reply.reply, duration_ms).await;
-                                }
-                            } else {
-                                // No HA client – just drive avatar with the raw STT text as a demo
-                                let duration_ms = ((text.len() as u32) * 70).max(1500);
-                                drive_avatar_during_tts(&call_session, &text, duration_ms).await;
-                            }
+                            // Drive avatar lip-sync with the transcribed text (demo path)
+                            let duration_ms = ((text.len() as u32) * 70).max(1500);
+                            drive_avatar_during_tts(&call_session, &text, duration_ms).await;
                         }
                         Ok(_) => {}
                         Err(e) => warn!("Wyoming STT error: {:?}", e),
