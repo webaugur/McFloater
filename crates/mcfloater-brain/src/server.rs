@@ -112,7 +112,7 @@ pub async fn serve(
         .route("/v1/stt", post(stt_transcribe))
         .route("/ws/call", get(ws_call))
         .route("/call", get(serve_call_page))
-        .nest_service("/static", tower_http::services::ServeDir::new("static"))
+        .nest_service("/static", tower_http::services::ServeDir::new("/home/user/.local/share/mcfloater/static"))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state);
