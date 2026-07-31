@@ -24,11 +24,11 @@
 
   <div class="video-grid">
     <div>
-      <div class="track-label">Remote (Avatar)</div>
+      <div class="track-label">Remote (Avatar + TTS audio from Thumper)</div>
       <video id="remote-video" autoplay playsinline></video>
     </div>
     <div>
-      <div class="track-label">Local (Webcam)</div>
+      <div class="track-label">Local (Webcam + Mic)</div>
       <video id="local-video" autoplay playsinline muted></video>
     </div>
   </div>
@@ -63,36 +63,20 @@ async function startCall() {
   hangupBtn.disabled = false;
 
   try {
-    // 1. Capture webcam (vision + mic)
+    // 1. Capture local webcam + mic (browser-only, works on Android)
     localStream = await navigator.mediaDevices.getUserMedia({
       video: { width: { ideal: 1280 }, height: { ideal: 720 } },
       audio: true
     });
     localVideo.srcObject = localStream;
 
-    // 2. Optionally capture avatar window on Tower (screen share)
-    let avatarStream = null;
-    try {
-      avatarStream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: 30 },
-        audio: false
-      });
-      log('Avatar window captured (Tower)');
-    } catch (e) {
-      log('No avatar capture (running on Android or permission denied)');
-    }
-
-    // 3. Create RTCPeerConnection
+    // 2. Create RTCPeerConnection (avatar video will arrive as a remote track)
     pc = new RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
     });
 
-    // Add local tracks
+    // Add local tracks only
     localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-
-    if (avatarStream) {
-      avatarStream.getTracks().forEach(track => pc.addTrack(track, avatarStream));
-    }
 
     // Handle remote tracks
     pc.ontrack = (event) => {
