@@ -122,6 +122,11 @@ pub async fn serve(
     info!(%bind, "McFloater brain listening (HTTPS enabled by default)");
 
     if https {
+        // Install the ring CryptoProvider (required by rustls 0.23 when using the ring feature)
+        rustls::crypto::ring::default_provider()
+            .install_default()
+            .expect("Failed to install ring CryptoProvider");
+
         // Generate a self-signed certificate for thumper.local + common IPs
         let cert = rcgen::generate_simple_self_signed(vec![
             "thumper.local".into(),
