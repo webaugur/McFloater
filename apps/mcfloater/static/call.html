@@ -16,6 +16,73 @@
   #hangup { background: #a00; color: white; }
   .status { margin-top: 0.5rem; font-family: monospace; font-size: 0.85rem; color: #888; }
   .track-label { font-size: 0.75rem; color: #aaa; margin-bottom: 0.25rem; }
+
+  /* Diagnostic / Telemetry panel */
+  .diag-panel {
+    margin-top: 1.25rem;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    font-family: ui-monospace, monospace;
+    font-size: 0.8rem;
+  }
+  .diag-title {
+    color: #666;
+    font-size: 0.7rem;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+  }
+  .diag-row {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.35rem;
+  }
+  .diag-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .diag-label {
+    color: #777;
+  }
+  .diag-value {
+    color: #0f0;
+    font-weight: 600;
+    min-width: 70px;
+  }
+  .diag-value.bad { color: #f44; }
+  .diag-value.warn { color: #fb0; }
+  .diag-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #555;
+  }
+  .diag-dot.green { background: #0f0; box-shadow: 0 0 6px #0f0; }
+  .diag-dot.red { background: #f44; }
+  .diag-dot.yellow { background: #fb0; }
+  .diag-log {
+    margin-top: 0.5rem;
+    height: 92px;
+    overflow-y: auto;
+    background: #111;
+    border: 1px solid #222;
+    padding: 4px 8px;
+    font-size: 0.72rem;
+    color: #aaa;
+    white-space: pre-wrap;
+  }
+  .git-id {
+    margin-top: 0.4rem;
+    font-size: 0.55rem;
+    color: #444;
+    font-family: ui-monospace, monospace;
+    text-align: right;
+  }
 </style>
 </head>
 <body>
@@ -39,6 +106,18 @@
   </div>
 
   <div id="status" class="status">Ready. Click Start Call.</div>
+
+  <div class="diag-panel">
+    <div class="diag-title">Diagnostic Mode</div>
+    <div class="diag-row">
+      <div class="diag-item"><span class="diag-label">WS:</span> <span id="ws-dot" class="diag-dot"></span> <span id="ws-val" class="diag-value"></span></div>
+      <div class="diag-item"><span class="diag-label">PC:</span> <span id="pc-dot" class="diag-dot"></span> <span id="pc-val" class="diag-value"></span></div>
+      <div class="diag-item"><span class="diag-label">STT:</span> <span id="stt-val" class="diag-value"></span></div>
+    </div>
+    <div class="diag-log" id="diag-log"></div>
+  </div>
+
+  <div class="git-id">b74a316</div>
 </div>
 
 <script>
